@@ -12,63 +12,80 @@ public class Bonus {
         boolean userDisconnect = false;
         // conn is the connection object to the database
         Connection conn = null;
+        // username and password are used to store user input
+        String password = null;
+        String username = null;
 
         // Initial login and connection to the database
         while (!connected) {
+            // Prompt user for username
             System.out.println("Welcome, please enter your username");
-            String username = reader.readLine();
+            username = reader.readLine();
 
-            System.out.println("\nPlease enter your password");
-            String password = reader.readLine();
+            // Prompt user for password
+            Console console = System.console();
+            if (console != null) {
+                char[] passwordChars = console.readPassword("Please enter your password:\n");
+                password = new String(passwordChars);
+            } else {
+                // Fallback for environments where Console is not available
+                System.out.println("\nPlease enter your password (Warning: Password will be visible):");
+                password = reader.readLine();
+            }
 
+            // Attempt to establish a database connection
             try {
                 conn = DriverManager.getConnection("jdbc:oracle:thin:@//oracle.cs.ua.edu:1521/xe", username, password);
                 System.out.println("\nConnection Established successfully");
                 connected = true;
             } catch (SQLException e) {
+                // Handle incorrect credentials
                 System.out.println("\nIncorrect credentials. Would you like to try again? (yes/no)");
                 String choice = reader.readLine();
                 
                 if (!choice.equalsIgnoreCase("yes")) {
+                    // Exit the program if user chooses not to retry
                     System.out.println("Exiting program.");
                     System.exit(0);
                 }
             }
         }
 
+        // Main program loop for handling user queries
         while(!userDisconnect) {
+            // Prompt user for input
             System.out.println("\nPlease enter an employee SSN or Project Number. To exit, type '0'");
             String input = reader.readLine();
 
-            if (isNumeric(input)) { // Close the program
+            // Check if input is numeric
+            if (isNumeric(input)) {
                 if (input.equals("0")) {
+                    // User chooses to exit the program
+                    conn.close();
                     userDisconnect = true;
                     System.out.println("\nExiting program. Goodbye!");
-                    conn.close();
-                    System.exit(0);
-                } else if (input.length() == 9) { // SSN Search
+                } else if (input.length() == 9) {
+                    // Handle SSN search
                     ResultSet rs = getEmployeeInfo(conn, input);
                     if (rs == null) {
-                        System.out.println("\nInvalid SSN. Please try again.");
+                        System.out.println("\nInvalid input. Please try again.");
                     } else {
                         parseAndPrintEmployee(rs);
                     }
-                } else { // Project Number Search
-                    System.out.println("Project Number search not yet implemented.");
+                } else {
+                    // Handle Project Number search
+                    ResultSet rs = getProjectInfo(conn, input);
+                    if (rs == null) {
+                        System.out.println("\nInvalid input. Please try again.");
+                    } else {
+                        parseAndPrintProject(rs);
+                    }
                 }
             }
         }
     }
 
-    private static boolean isNumeric(String s) {
-        for (int i = 0; i < s.length(); i++) {
-            if (!Character.isDigit(s.charAt(i))) {
-                return false; 
-            }
-        }
-        return true;
-    }
-
+    // Retrieves employee information from the database based on SSN
     private static ResultSet getEmployeeInfo(Connection conn, String ssn) {
         try {
             String query = "SELECT e1.Fname AS EmployeeFName, "
@@ -90,11 +107,18 @@ public class Bonus {
             + "LEFT JOIN Works_On w ON e1.SSN = w.Essn "
             + "LEFT JOIN Project p ON w.Pno = p.Pnumber "
             + "WHERE e1.SSN = ? "
-            + "ORDER BY p.Pname";
+            + "ORDER BY p.Pnumber";
 
             PreparedStatement stmt = conn.prepareStatement(query);
             stmt.setString(1, ssn);
             ResultSet rs = stmt.executeQuery();
+
+            if (!rs.isBeforeFirst()) { // No rows found
+                rs.close();
+                stmt.close();
+                return null;
+            }
+
             return rs;
         } catch (SQLException e) {
             e.printStackTrace();
@@ -102,21 +126,39 @@ public class Bonus {
         }
     }
 
-    private static String buildFullName(String fName, String mInit, String lName) {
-        if (fName != null) {
-            String fullName = fName;
-            if (mInit != null && !mInit.isEmpty()) {
-                fullName += " " + mInit + ".";
+    // Retrieves project information from the database based on project number
+    private static ResultSet getProjectInfo(Connection conn, String projectNumber) {
+        try {
+            String query = "SELECT p.Pname AS ProjectName, " 
+            + "d.Dname AS DepartmentName, " 
+            + "e.Fname AS EmployeeFirstName, " 
+            + "e.Minit AS EmployeeMiddleInitial, " 
+            + "e.Lname AS EmployeeLastName " 
+            + "FROM Project p " 
+            + "LEFT JOIN Department d ON p.Dnum = d.Dnumber " 
+            + "LEFT JOIN Works_On w ON p.Pnumber = w.Pno " 
+            + "LEFT JOIN Employee e ON w.Essn = e.SSN " 
+            + "WHERE p.Pnumber = ? " 
+            + "ORDER BY e.Fname, e.Lname";
+
+            PreparedStatement stmt = conn.prepareStatement(query);
+            stmt.setString(1, projectNumber);
+            ResultSet rs = stmt.executeQuery();
+
+            if (!rs.isBeforeFirst()) { // No rows found
+                rs.close();
+                stmt.close();
+                return null;
             }
-            if (lName != null && !lName.isEmpty()) {
-                fullName += " " + lName;
-            }
-            return fullName;
-        } else {
-            return "None";
+
+            return rs;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return null;
         }
     }
 
+    // Parses and prints employee information from the ResultSet
     private static void parseAndPrintEmployee(ResultSet rs) {
         try {
             String employeeFName = null;
@@ -167,6 +209,63 @@ public class Bonus {
         } catch (SQLException e) {
             e.printStackTrace();
             System.out.println("Error processing employee data.");
+        }
+    }
+
+    // Parses and prints project information from the ResultSet
+    private static void parseAndPrintProject(ResultSet rs) {
+        try {
+            String projectName = null;
+            String departmentName = null;
+            ArrayList<String> employees = new ArrayList<String>();
+
+            while (rs.next()) {
+                if (projectName == null) {
+                    projectName = rs.getString("ProjectName");
+                    departmentName = rs.getString("DepartmentName");
+                }
+
+                String employeeName = buildFullName(rs.getString("EmployeeFirstName"), rs.getString("EmployeeMiddleInitial"), rs.getString("EmployeeLastName"));
+                if (employeeName != null) {
+                    employees.add(employeeName);
+                }
+            }
+
+            System.out.println("\nProject Name: " + projectName);
+            System.out.println("Controlling Department: " + departmentName);
+            System.out.println("List of Employees Involved: ");
+            for (String employee : employees) {
+                System.out.println("    " + employee);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            System.out.println("Error processing project data.");
+        }
+    }
+
+    // Checks if a string contains only numeric digits
+    private static boolean isNumeric(String s) {
+        for (int i = 0; i < s.length(); i++) {
+            if (!Character.isDigit(s.charAt(i))) {
+                return false; 
+            }
+        }
+        return true;
+    }
+
+    // Builds a full name from first name, middle initial, and last name
+    private static String buildFullName(String fName, String mInit, String lName) {
+        if (fName != null) {
+            String fullName = fName;
+            if (mInit != null && !mInit.isEmpty()) {
+                fullName += " " + mInit + ".";
+            }
+            if (lName != null && !lName.isEmpty()) {
+                fullName += " " + lName;
+            }
+            return fullName;
+        } else {
+            return "None";
         }
     }
 }
