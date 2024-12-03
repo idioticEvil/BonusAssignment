@@ -40,10 +40,10 @@ public class Bonus {
             System.out.println("\nPlease enter an employee SSN or Project Number. To exit, type '0'");
             String input = reader.readLine();
 
-            if (isNumeric(input)) {
+            if (isNumeric(input)) { // Close the program
                 if (input.equals("0")) {
                     userDisconnect = true;
-                    System.out.println("\nExiting program.");
+                    System.out.println("\nExiting program. Goodbye!");
                     conn.close();
                     System.exit(0);
                 } else if (input.length() == 9) { // SSN Search
@@ -105,11 +105,11 @@ public class Bonus {
     private static String buildFullName(String fName, String mInit, String lName) {
         if (fName != null) {
             String fullName = fName;
-            if (mInit != null && !mInit.trim().isEmpty()) {
-                fullName += " " + mInit.trim() + ".";
+            if (mInit != null && !mInit.isEmpty()) {
+                fullName += " " + mInit + ".";
             }
-            if (lName != null && !lName.trim().isEmpty()) {
-                fullName += " " + lName.trim();
+            if (lName != null && !lName.isEmpty()) {
+                fullName += " " + lName;
             }
             return fullName;
         } else {
@@ -157,8 +157,8 @@ public class Bonus {
             String departmentManagerName = buildFullName(departmentManagerFName, departmentManagerMInit, departmentManagerLName);
 
             System.out.println("\nEmployee Name: " + employeeName);
-            System.out.println("Supervisor Name: " + supervisorName);
-            System.out.println("Department Manager Name: " + departmentManagerName);
+            System.out.println("Supervisor: " + supervisorName);
+            System.out.println("Department Manager: " + departmentManagerName);
             System.out.println("Number of Dependents: " + numberOfDependents);
             System.out.println("Projects: ");
             for (String project : projects) {
