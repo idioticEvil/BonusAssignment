@@ -18,15 +18,15 @@ public class Bonus {
             System.out.println("Welcome, please enter your username");
             String username = reader.readLine();
 
-            System.out.println("Please enter your password");
+            System.out.println("\nPlease enter your password");
             String password = reader.readLine();
 
             try {
                 conn = DriverManager.getConnection("jdbc:oracle:thin:@//oracle.cs.ua.edu:1521/xe", username, password);
-                System.out.println("Connection Established successfully");
+                System.out.println("\nConnection Established successfully");
                 connected = true;
             } catch (SQLException e) {
-                System.out.println("Incorrect credentials. Would you like to try again? (yes/no)");
+                System.out.println("\nIncorrect credentials. Would you like to try again? (yes/no)");
                 String choice = reader.readLine();
                 
                 if (!choice.equalsIgnoreCase("yes")) {
@@ -37,35 +37,24 @@ public class Bonus {
         }
 
         while(!userDisconnect) {
-            System.out.println("Please enter an employee SSN or Project Number. To exit, type '0'");
+            System.out.println("\nPlease enter an employee SSN or Project Number. To exit, type '0'");
             String input = reader.readLine();
 
             if (isNumeric(input)) {
                 if (input.equals("0")) {
                     userDisconnect = true;
-                    System.out.println("Exiting program.");
+                    System.out.println("\nExiting program.");
                     conn.close();
                     System.exit(0);
                 } else if (input.length() == 9) { // SSN Search
-                    String query = "SELECT e1.Fname || ' ' || e1.Minit || ' ' || e1.Lname AS EmployeeName, "
-                    + "e2.Fname || ' ' || e2.Minit || ' ' || e2.Lname AS SupervisorName, "
-                    + "e3.Fname || ' ' || e3.Minit || ' ' || e3.Lname AS DepartmentManagerName, "
-                    + "(SELECT COUNT(*) FROM Dependent WHERE Dependent.Essn = e1.SSN) AS NumberOfDependents, "
-                    + "p.Pname AS ProjectName,"
-                    + "p.Pnumber AS ProjectNumber "
-                    + "FROM Employee e1 "
-                    + "LEFT JOIN Employee e2 ON e1.SUPERSSN = e2.SSN "
-                    + "LEFT JOIN Department d ON e1.Dno = d.Dnumber "
-                    + "LEFT JOIN Employee e3 ON d.MgrSSN = e3.SSN "
-                    + "LEFT JOIN Works_On w ON e1.SSN = w.Essn "
-                    + "LEFT JOIN Project p ON w.Pno = p.Pnumber "
-                    + "WHERE e1.SSN = ? "
-                    + "ORDER BY p.Pname";
-                    PreparedStatement stmt = conn.prepareStatement(query);
-                    ResultSet rs = stmt.executeQuery(query);
-
+                    ResultSet rs = getEmployeeInfo(conn, input);
+                    if (rs == null) {
+                        System.out.println("\nInvalid SSN. Please try again.");
+                    } else {
+                        parseAndPrintEmployee(rs);
+                    }
                 } else { // Project Number Search
-
+                    System.out.println("Project Number search not yet implemented.");
                 }
             }
         }
@@ -78,5 +67,106 @@ public class Bonus {
             }
         }
         return true;
+    }
+
+    private static ResultSet getEmployeeInfo(Connection conn, String ssn) {
+        try {
+            String query = "SELECT e1.Fname AS EmployeeFName, "
+            + "e1.Minit AS EmployeeMInit, "
+            + "e1.Lname AS EmployeeLName, "
+            + "e2.Fname AS SupervisorFName, "
+            + "e2.Minit AS SupervisorMInit, "
+            + "e2.Lname AS SupervisorLName, "
+            + "e3.Fname AS DepartmentManagerFName, "
+            + "e3.Minit AS DepartmentManagerMInit, "
+            + "e3.Lname AS DepartmentManagerLName, "
+            + "(SELECT COUNT(*) FROM Dependent WHERE Dependent.Essn = e1.SSN) AS NumberOfDependents, "
+            + "p.Pname AS ProjectName, "
+            + "p.Pnumber AS ProjectNumber "
+            + "FROM Employee e1 "
+            + "LEFT JOIN Employee e2 ON e1.SUPERSSN = e2.SSN "
+            + "LEFT JOIN Department d ON e1.Dno = d.Dnumber "
+            + "LEFT JOIN Employee e3 ON d.MgrSSN = e3.SSN "
+            + "LEFT JOIN Works_On w ON e1.SSN = w.Essn "
+            + "LEFT JOIN Project p ON w.Pno = p.Pnumber "
+            + "WHERE e1.SSN = ? "
+            + "ORDER BY p.Pname";
+
+            PreparedStatement stmt = conn.prepareStatement(query);
+            stmt.setString(1, ssn);
+            ResultSet rs = stmt.executeQuery();
+            return rs;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    private static String buildFullName(String fName, String mInit, String lName) {
+        if (fName != null) {
+            String fullName = fName;
+            if (mInit != null && !mInit.trim().isEmpty()) {
+                fullName += " " + mInit.trim() + ".";
+            }
+            if (lName != null && !lName.trim().isEmpty()) {
+                fullName += " " + lName.trim();
+            }
+            return fullName;
+        } else {
+            return "None";
+        }
+    }
+
+    private static void parseAndPrintEmployee(ResultSet rs) {
+        try {
+            String employeeFName = null;
+            String employeeMInit = null;
+            String employeeLName = null;
+            String supervisorFName = null;
+            String supervisorMInit = null;
+            String supervisorLName = null;
+            String departmentManagerFName = null;
+            String departmentManagerMInit = null;
+            String departmentManagerLName = null;
+            ArrayList<String> projects = new ArrayList<String>();
+            int numberOfDependents = 0;
+
+            while (rs.next()) {
+                if (employeeFName == null) {
+                    employeeFName = rs.getString("EmployeeFName");
+                    employeeMInit = rs.getString("EmployeeMInit");
+                    employeeLName = rs.getString("EmployeeLName");
+                    supervisorFName = rs.getString("SupervisorFName");
+                    supervisorMInit = rs.getString("SupervisorMInit");
+                    supervisorLName = rs.getString("SupervisorLName");
+                    departmentManagerFName = rs.getString("DepartmentManagerFName");
+                    departmentManagerMInit = rs.getString("DepartmentManagerMInit");
+                    departmentManagerLName = rs.getString("DepartmentManagerLName");
+                    numberOfDependents = rs.getInt("NumberOfDependents");
+                }
+
+                String projectName = rs.getString("ProjectName");
+                String projectNumber = rs.getString("ProjectNumber");
+                if (projectName != null && projectNumber != null) {
+                    projects.add(projectName + " (" + projectNumber + ")");
+                }
+            }
+
+            String employeeName = buildFullName(employeeFName, employeeMInit, employeeLName);
+            String supervisorName = buildFullName(supervisorFName, supervisorMInit, supervisorLName);
+            String departmentManagerName = buildFullName(departmentManagerFName, departmentManagerMInit, departmentManagerLName);
+
+            System.out.println("\nEmployee Name: " + employeeName);
+            System.out.println("Supervisor Name: " + supervisorName);
+            System.out.println("Department Manager Name: " + departmentManagerName);
+            System.out.println("Number of Dependents: " + numberOfDependents);
+            System.out.println("Projects: ");
+            for (String project : projects) {
+                System.out.println("    " + project);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            System.out.println("Error processing employee data.");
+        }
     }
 }
