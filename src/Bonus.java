@@ -23,15 +23,8 @@ public class Bonus {
             username = reader.readLine();
 
             // Prompt user for password
-            Console console = System.console();
-            if (console != null) {
-                char[] passwordChars = console.readPassword("Please enter your password:\n");
-                password = new String(passwordChars);
-            } else {
-                // Fallback for environments where Console is not available
-                System.out.println("\nPlease enter your password (Warning: Password will be visible):");
-                password = reader.readLine();
-            }
+            System.out.println("Please enter your password");
+            password = reader.readLine();
 
             // Attempt to establish a database connection
             try {
